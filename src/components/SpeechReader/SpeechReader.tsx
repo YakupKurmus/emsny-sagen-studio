@@ -223,6 +223,20 @@ export function SpeechReader({
   const [isTurning, setIsTurning] = useState(false);
   const turnTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Track viewport width so small screens (< lg / 1024px) always turn 1 page at a time
+  const [isWideScreen, setIsWideScreen] = useState(true);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncViewport = () => setIsWideScreen(window.innerWidth >= 1024);
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
+
+  const effectiveBookSpread = settings.bookSpread && isWideScreen;
+
   // Load saved settings on hydration
   useEffect(() => {
     setSettings(loadSavedReaderSettings());
@@ -362,7 +376,7 @@ export function SpeechReader({
         );
         if (targetPage) {
           const targetNum = targetPage.pageNumber;
-          if (settings.bookSpread) {
+          if (effectiveBookSpread) {
             const spreadStart = targetNum % 2 === 0 ? targetNum - 1 : targetNum;
             const currentSpreadStart = currentPage % 2 === 0 ? currentPage - 1 : currentPage;
             if (spreadStart !== currentSpreadStart) {
@@ -374,7 +388,7 @@ export function SpeechReader({
         }
       }
     },
-    [settings.mode, settings.bookSpread, pages, currentPage, goToPage]
+    [settings.mode, effectiveBookSpread, pages, currentPage, goToPage]
   );
 
   const useOriginalAudio = Boolean(activeSaga?.audioUrl && preferOriginalAudio);
@@ -455,7 +469,7 @@ export function SpeechReader({
         return;
       }
 
-      const step = settings.bookSpread ? 2 : 1;
+      const step = effectiveBookSpread ? 2 : 1;
 
       if (e.key === "ArrowRight" || e.key === "PageDown") {
         if (settings.mode === "pages" && currentPage < pages.length) {
@@ -481,7 +495,7 @@ export function SpeechReader({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     settings.mode,
-    settings.bookSpread,
+    effectiveBookSpread,
     currentPage,
     pages.length,
     hasAudio,
@@ -542,8 +556,8 @@ export function SpeechReader({
     );
   }
 
-  // Active spread calculation for Book Mode
-  const leftPageNum = settings.bookSpread
+  // Active spread calculation for Book Mode (single-page on mobile/tablet < 1024px)
+  const leftPageNum = effectiveBookSpread
     ? currentPage % 2 === 0
       ? currentPage - 1
       : currentPage
@@ -553,6 +567,52 @@ export function SpeechReader({
   const leftPageData = pages[leftPageNum - 1] ?? pages[0];
   const rightPageData = pages[rightPageNum - 1] ?? null;
 
+  const pageStep = effectiveBookSpread ? 2 : 1;
+  const canGoPrevPage = leftPageNum > 1;
+  const canGoNextPage = effectiveBookSpread
+    ? rightPageNum < pages.length && Boolean(rightPageData)
+    : leftPageNum < pages.length;
+
+  const handlePrevPage = () => {
+    if (!canGoPrevPage) return;
+    goToPage(Math.max(1, leftPageNum - pageStep));
+  };
+
+  const handleNextPage = () => {
+    if (!canGoNextPage) return;
+    goToPage(Math.min(pages.length, leftPageNum + pageStep));
+  };
+
+  const handleBookTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleBookTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      if (dx < 0) {
+        handleNextPage();
+      } else {
+        handlePrevPage();
+      }
+    }
+  };
+
+  const cycleMobileSpeed = () => {
+    const presets = [0.75, 1.0, 1.25, 1.5];
+    const next = presets.find((p) => p > settings.speechRate + 0.04) ?? presets[0]!;
+    updateSettings({ ...settings, speechRate: next });
+  };
+
   const isBookMode = settings.mode === "pages";
 
   const renderBookPageSheet = (pageData: ReaderPage, side: "left" | "right") => {
@@ -560,7 +620,7 @@ export function SpeechReader({
 
     return (
       <article
-        className={`${showSideClass} relative flex-1 min-h-0 flex-col justify-between rounded-none border-0 px-7 sm:px-11 lg:px-14 pt-7 sm:pt-9 lg:pt-10 pb-5 sm:pb-6 overflow-hidden transition-colors duration-200 ${activeTheme.sheetClass}`}
+        className={`${showSideClass} relative flex-1 min-h-0 flex-col justify-between rounded-none border-0 px-5 sm:px-11 lg:px-14 pt-5 sm:pt-9 lg:pt-10 pb-4 sm:pb-6 overflow-hidden transition-colors duration-200 ${activeTheme.sheetClass}`}
       >
         <div
           className={`min-h-0 flex-1 overflow-y-auto font-sans text-left text-[0.84em] sm:text-[0.87em] leading-[1.68] space-y-4 px-1 -mx-1 ${activeTheme.proseClass}`}
@@ -636,12 +696,22 @@ export function SpeechReader({
         </div>
 
         <footer
-          aria-label={`Seite ${pageData.pageNumber}`}
-          className={`pt-3.5 shrink-0 font-sans text-xs tabular-nums select-none ${activeTheme.mutedClass} ${
-            side === "right" ? "text-right" : "text-left"
-          }`}
+          className={`pt-3 shrink-0 font-sans text-xs tabular-nums select-none flex items-center justify-between gap-2 ${activeTheme.mutedClass}`}
         >
-          {pageData.pageNumber}
+          {side === "right" ? (
+            <span className="ml-auto" aria-label={`Seite ${pageData.pageNumber}`}>
+              {pageData.pageNumber}
+            </span>
+          ) : (
+            <>
+              <span aria-label={`Seite ${pageData.pageNumber}`}>{pageData.pageNumber}</span>
+              {pages.length > 1 && pageData.pageNumber === 1 && (
+                <span className="lg:hidden text-[10px] opacity-60 font-medium">
+                  ← Wischen zum Blättern →
+                </span>
+              )}
+            </>
+          )}
         </footer>
       </article>
     );
@@ -660,16 +730,16 @@ export function SpeechReader({
     >
       {/* 1. TOP CONTROL BAR */}
       <header
-        className={`shrink-0 h-12 z-40 border-b backdrop-blur-md flex items-center transition-colors ${activeTheme.chromeClass}`}
+        className={`shrink-0 h-13 sm:h-12 z-40 border-b backdrop-blur-md flex items-center transition-colors ${activeTheme.chromeClass}`}
       >
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-1.5 px-2.5 sm:px-6">
           {/* Back button & Title */}
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleBackToLibrary}
-              className="h-8 gap-1 font-bold hover:bg-black/5 dark:hover:bg-white/5 px-2"
+              className="h-9 sm:h-8 gap-1 font-bold hover:bg-black/5 dark:hover:bg-white/5 px-2 shrink-0"
               aria-label="Zurück zur Sagen-Auswahl"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -692,25 +762,27 @@ export function SpeechReader({
             )}
 
             <div className="min-w-0 border-l border-foreground/15 pl-2 sm:pl-3 flex items-center gap-2">
-              <h1 className="text-xs sm:text-sm font-bold truncate hidden md:block">
+              <h1 className="text-xs sm:text-sm font-bold truncate max-w-[115px] sm:max-w-[200px] md:max-w-none">
                 {activeSaga.title}
               </h1>
-              <HdVoiceSelect
-                compact
-                value={settings.voiceId}
-                onChange={handleSelectVoice}
-                ariaLabel="Google Cloud / Gemini HD Stimme wählen"
-              />
+              <div className="hidden sm:block">
+                <HdVoiceSelect
+                  compact
+                  value={settings.voiceId}
+                  onChange={handleSelectVoice}
+                  ariaLabel="Google Cloud / Gemini HD Stimme wählen"
+                />
+              </div>
             </div>
           </div>
 
           {/* Controls: Audio source, Glossary, Spread, Mode switch (Buch vs Scroll), Settings */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {activeSaga.audioUrl && (
               <button
                 type="button"
                 onClick={() => setPreferOriginalAudio((prev) => !prev)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                className={`inline-flex items-center justify-center gap-1.5 h-9 sm:h-8 rounded-full border px-2 sm:px-2.5 text-xs font-semibold transition cursor-pointer ${
                   useOriginalAudio
                     ? activeTheme.isDark
                       ? "border-amber-400/60 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30"
@@ -734,7 +806,7 @@ export function SpeechReader({
               <button
                 type="button"
                 onClick={() => setIsGlossaryOpen(true)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${activeTheme.chromePillClass}`}
+                className={`inline-flex items-center justify-center gap-1.5 h-9 sm:h-8 rounded-full border px-2 sm:px-2.5 text-xs font-semibold transition cursor-pointer ${activeTheme.chromePillClass}`}
                 title="Wortschatz (B2-Glossar) und Aufgaben zum Textverständnis öffnen"
               >
                 <BookMarked className="h-3.5 w-3.5 text-primary" />
@@ -747,7 +819,7 @@ export function SpeechReader({
               <button
                 type="button"
                 onClick={() => updateSettings({ ...settings, bookSpread: !settings.bookSpread })}
-                className={`hidden lg:inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${activeTheme.chromePillClass}`}
+                className={`hidden lg:inline-flex items-center gap-1.5 h-8 rounded-full border px-2.5 text-xs font-semibold transition cursor-pointer ${activeTheme.chromePillClass}`}
                 title={settings.bookSpread ? "Zu Einzelseite wechseln" : "Zu Doppelseite wechseln"}
               >
                 <Columns2 className="h-3.5 w-3.5 text-primary" />
@@ -764,20 +836,18 @@ export function SpeechReader({
                   mode: isBookMode ? "scroll" : "pages",
                 })
               }
-              className="inline-flex items-center gap-1.5 rounded-full border border-foreground/20 px-2.5 py-1 text-xs font-bold transition hover:bg-foreground/5 cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 h-9 sm:h-8 rounded-full border border-foreground/20 px-2 sm:px-2.5 text-xs font-bold transition hover:bg-foreground/5 cursor-pointer"
               title="Zwischen Buch-Darstellung (ohne Scrollen) und Fließtext umschalten"
             >
               {isBookMode ? (
                 <>
                   <BookOpen className="h-3.5 w-3.5 text-primary" />
                   <span className="hidden sm:inline">Buchansicht</span>
-                  <span className="sm:hidden">Buch</span>
                 </>
               ) : (
                 <>
                   <ScrollText className="h-3.5 w-3.5 text-primary" />
                   <span className="hidden sm:inline">Fließtext</span>
-                  <span className="sm:hidden">Text</span>
                 </>
               )}
             </button>
@@ -787,7 +857,7 @@ export function SpeechReader({
               variant="outline"
               size="sm"
               onClick={() => setIsSettingsOpen(true)}
-              className="h-8 gap-1.5 text-xs font-bold border-foreground/20 px-2 sm:px-3"
+              className="h-9 sm:h-8 gap-1.5 text-xs font-bold border-foreground/20 px-2 sm:px-3"
               title={`Ansicht, Papierton (${activeTheme.label}), Tempo & Mitlesen anpassen`}
             >
               <Sliders className="h-3.5 w-3.5 text-primary" />
@@ -806,7 +876,7 @@ export function SpeechReader({
                   stop();
                   onStartWriting(activeSaga);
                 }}
-                className="h-8 gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 sm:px-3.5 shadow-sm"
+                className="h-9 sm:h-8 gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 sm:px-3.5 shadow-sm"
                 title="Weiter zu Schritt 02: Diese Sage in eigenen Worten nacherzählen"
               >
                 <PenLine className="h-3.5 w-3.5" />
@@ -823,25 +893,22 @@ export function SpeechReader({
       <main
         className={
           isBookMode
-            ? "flex-1 min-h-0 flex flex-col justify-center items-center px-2 sm:px-6 lg:px-14 pt-1 pb-20 sm:pb-24 overflow-hidden relative"
-            : "flex-1 pb-28 pt-4 sm:pt-8"
+            ? "flex-1 min-h-0 flex flex-col justify-center items-center px-1.5 sm:px-6 lg:px-14 pt-1 pb-28 sm:pb-24 overflow-hidden relative"
+            : "flex-1 pb-32 sm:pb-28 pt-3 sm:pt-8"
         }
       >
         {/* A. KLARE DOPPELSEITEN-BUCHANSICHT WIE IM ANHANG */}
         {isBookMode && leftPageData && (
           <div
-            className={`relative w-full h-full max-h-[calc(100vh-118px)] flex flex-col justify-center items-center ${
-              settings.bookSpread && rightPageData ? "max-w-[1060px]" : "max-w-[560px]"
+            className={`relative w-full h-full max-h-[calc(100dvh-164px)] sm:max-h-[calc(100dvh-118px)] flex flex-col justify-center items-center ${
+              effectiveBookSpread && rightPageData ? "max-w-[1060px]" : "max-w-[560px]"
             }`}
           >
             {/* Desktop Linker Schwebender Blätter-Button */}
             <button
               type="button"
-              onClick={() => {
-                const step = settings.bookSpread ? 2 : 1;
-                goToPage(Math.max(1, leftPageNum - step));
-              }}
-              disabled={leftPageNum <= 1}
+              onClick={handlePrevPage}
+              disabled={!canGoPrevPage}
               className={`hidden lg:flex absolute -left-5 xl:-left-14 top-1/2 -translate-y-1/2 z-30 h-10 w-10 items-center justify-center rounded-full border shadow-xl hover:scale-105 active:scale-95 disabled:opacity-0 disabled:pointer-events-none transition cursor-pointer ${activeTheme.navOrbClass}`}
               title="Vorherige Seite (Pfeiltaste links)"
               aria-label="Vorherige Seite"
@@ -852,15 +919,8 @@ export function SpeechReader({
             {/* Desktop Rechter Schwebender Blätter-Button */}
             <button
               type="button"
-              onClick={() => {
-                const step = settings.bookSpread ? 2 : 1;
-                goToPage(Math.min(pages.length, leftPageNum + step));
-              }}
-              disabled={
-                settings.bookSpread
-                  ? rightPageNum >= pages.length || !rightPageData
-                  : leftPageNum >= pages.length
-              }
+              onClick={handleNextPage}
+              disabled={!canGoNextPage}
               className={`hidden lg:flex absolute -right-5 xl:-right-14 top-1/2 -translate-y-1/2 z-30 h-10 w-10 items-center justify-center rounded-full border shadow-xl hover:scale-105 active:scale-95 disabled:opacity-0 disabled:pointer-events-none transition cursor-pointer ${activeTheme.navOrbClass}`}
               title="Nächste Seite (Pfeiltaste rechts)"
               aria-label="Nächste Seite"
@@ -868,18 +928,17 @@ export function SpeechReader({
               <ChevronRight className="h-5 w-5" />
             </button>
 
-            {/* Buchblatt / Doppelseite im einheitlichen Lesemodus-Farbschema */}
+            {/* Buchblatt / Doppelseite im einheitlichen Lesemodus-Farbschema (mit Touch-Wischen) */}
             <div
+              onTouchStart={handleBookTouchStart}
+              onTouchEnd={handleBookTouchEnd}
               className={`relative w-full flex-1 min-h-0 flex overflow-hidden rounded-[4px] border transition-colors duration-200 ${activeTheme.spreadWrapperClass}`}
             >
               {/* Klick-Blätter-Zone links */}
               <div
-                onClick={() => {
-                  const step = settings.bookSpread ? 2 : 1;
-                  goToPage(Math.max(1, leftPageNum - step));
-                }}
-                className={`absolute left-0 inset-y-0 w-[6%] z-20 cursor-pointer flex items-center justify-start pl-1.5 transition-opacity group ${
-                  leftPageNum <= 1 ? "pointer-events-none opacity-0" : activeTheme.hoverZoneClass
+                onClick={handlePrevPage}
+                className={`absolute left-0 inset-y-0 w-[8%] sm:w-[6%] z-20 cursor-pointer flex items-center justify-start pl-1.5 transition-opacity group ${
+                  !canGoPrevPage ? "pointer-events-none opacity-0" : activeTheme.hoverZoneClass
                 }`}
                 title="Vorherige Seite"
               >
@@ -892,12 +951,9 @@ export function SpeechReader({
 
               {/* Klick-Blätter-Zone rechts */}
               <div
-                onClick={() => {
-                  const step = settings.bookSpread ? 2 : 1;
-                  goToPage(Math.min(pages.length, leftPageNum + step));
-                }}
-                className={`absolute right-0 inset-y-0 w-[6%] z-20 cursor-pointer flex items-center justify-end pr-1.5 transition-opacity group ${
-                  (settings.bookSpread ? rightPageNum >= pages.length || !rightPageData : leftPageNum >= pages.length)
+                onClick={handleNextPage}
+                className={`absolute right-0 inset-y-0 w-[8%] sm:w-[6%] z-20 cursor-pointer flex items-center justify-end pr-1.5 transition-opacity group ${
+                  !canGoNextPage
                     ? "pointer-events-none opacity-0"
                     : activeTheme.hoverZoneClass
                 }`}
@@ -923,14 +979,14 @@ export function SpeechReader({
               >
                 {renderBookPageSheet(leftPageData, "left")}
 
-                {settings.bookSpread && rightPageData && (
+                {effectiveBookSpread && rightPageData && (
                   <div
                     className={`hidden lg:block w-[2px] shrink-0 ${activeTheme.spineClass}`}
                     aria-hidden="true"
                   />
                 )}
 
-                {settings.bookSpread && rightPageData && renderBookPageSheet(rightPageData, "right")}
+                {effectiveBookSpread && rightPageData && renderBookPageSheet(rightPageData, "right")}
               </div>
             </div>
           </div>
@@ -938,9 +994,9 @@ export function SpeechReader({
 
         {/* B. FLIESSTEXT MODUS (RUHIGES DOKUMENT-BLATT IM GEWÄHLTEN PAPIERTON) */}
         {!isBookMode && (
-          <div className="mx-auto w-full max-w-[780px] px-3 sm:px-6 pt-2 sm:pt-4 pb-6">
+          <div className="mx-auto w-full max-w-[780px] px-2.5 sm:px-6 pt-2 sm:pt-4 pb-6">
             <article
-              className={`rounded-[4px] border shadow-[0_14px_40px_rgba(0,0,0,0.18)] px-7 sm:px-14 md:px-16 py-9 sm:py-12 transition-colors duration-200 ${activeTheme.sheetClass}`}
+              className={`rounded-[4px] border shadow-[0_14px_40px_rgba(0,0,0,0.18)] px-5 sm:px-14 md:px-16 py-6 sm:py-12 transition-colors duration-200 ${activeTheme.sheetClass}`}
             >
               <h2
                 className={`text-2xl sm:text-[28px] font-bold tracking-tight mb-5 leading-tight font-sans ${activeTheme.headingClass}`}
@@ -1064,65 +1120,15 @@ export function SpeechReader({
 
       {/* 3. EINGEFRORENE STEUERUNGSKONSOLE AM UNTEREN BILDSCHIRMRAND (FROZEN BOTTOM CONTROL CONSOLE) */}
       <footer
-        className={`fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur-xl shadow-2xl transition-colors ${activeTheme.chromeClass}`}
+        className={`fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur-xl shadow-2xl transition-colors pb-safe ${activeTheme.chromeClass}`}
       >
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-1.5 sm:gap-3 px-2 sm:px-6 py-2">
-          {/* Konsole 1: Buchseiten-Steuerung (im Buchmodus) */}
-          {isBookMode ? (
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const step = settings.bookSpread ? 2 : 1;
-                  goToPage(Math.max(1, leftPageNum - step));
-                }}
-                disabled={leftPageNum <= 1}
-                className="h-8 gap-1 font-bold text-xs px-2 sm:px-2.5 rounded-lg border-foreground/20 hover:bg-foreground/5"
-                title={settings.bookSpread ? "Vorherige Doppelseite (Pfeiltaste links)" : "Vorherige Seite"}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span className="hidden md:inline">{settings.bookSpread ? "Zurück" : "Vorherige"}</span>
-              </Button>
-
-              <span className="bg-foreground/5 px-2 sm:px-2.5 py-1 rounded-lg border border-foreground/15 text-xs font-bold whitespace-nowrap">
-                {settings.bookSpread && rightPageData
-                  ? `S. ${leftPageNum}–${rightPageNum} / ${pages.length}`
-                  : `S. ${leftPageNum} / ${pages.length}`}
-              </span>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const step = settings.bookSpread ? 2 : 1;
-                  goToPage(Math.min(pages.length, leftPageNum + step));
-                }}
-                disabled={
-                  settings.bookSpread
-                    ? rightPageNum >= pages.length || !rightPageData
-                    : leftPageNum >= pages.length
-                }
-                className="h-8 gap-1 font-bold text-xs px-2 sm:px-2.5 rounded-lg border-foreground/20 hover:bg-foreground/5"
-                title={settings.bookSpread ? "Nächste Doppelseite (Pfeiltaste rechts)" : "Nächste Seite"}
-              >
-                <span className="hidden md:inline">{settings.bookSpread ? "Weiter" : "Nächste"}</span>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-muted-foreground shrink-0">
-              <ScrollText className="h-4 w-4 text-primary" />
-              <span>Fließtext</span>
-            </div>
-          )}
-
-          {/* Konsole 2: Google Cloud / Gemini HD Player (Play / Pause / Satz-Navigation) */}
-          <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 justify-center">
+        <div className="mx-auto flex w-full max-w-7xl flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 px-2.5 sm:px-6 py-2">
+          {/* Mobile Row 1 / Desktop Center: Google Cloud / Gemini HD Player */}
+          <div className="order-1 sm:order-2 flex items-center gap-1.5 min-w-0 sm:flex-1 justify-center">
             {audioError && (
               <span
                 role="alert"
-                className="text-[11px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded max-w-[260px] truncate"
+                className="text-[11px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded max-w-[160px] sm:max-w-[260px] truncate"
                 title={audioError}
               >
                 {audioError}
@@ -1136,7 +1142,7 @@ export function SpeechReader({
               disabled={!hasAudio || currentSentenceIndex <= 0}
               title="Vorheriger Satz"
               aria-label="Vorheriger Satz"
-              className="h-8 w-8 rounded-full border-foreground/20 shrink-0"
+              className="h-9 w-9 sm:h-8 sm:w-8 rounded-full border-foreground/20 shrink-0"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -1148,7 +1154,7 @@ export function SpeechReader({
                 else void play();
               }}
               disabled={!hasAudio}
-              className={`h-9 px-3.5 sm:px-4 rounded-full font-bold gap-1.5 shadow-sm text-xs transition shrink-0 ${
+              className={`h-10 sm:h-9 px-4 rounded-full font-bold gap-1.5 shadow-sm text-xs transition shrink-0 ${
                 isPlaying
                   ? "bg-amber-600 hover:bg-amber-700 text-white"
                   : "bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -1174,7 +1180,7 @@ export function SpeechReader({
                 onClick={stop}
                 title="Wiedergabe stoppen & zurück zum Anfang"
                 aria-label="Hörbuch stoppen"
-                className="h-8 w-8 rounded-full border-foreground/20 text-destructive hover:bg-destructive/10 shrink-0"
+                className="h-9 w-9 sm:h-8 sm:w-8 rounded-full border-foreground/20 text-destructive hover:bg-destructive/10 shrink-0"
               >
                 <Square className="h-3 w-3 fill-current" />
               </Button>
@@ -1187,12 +1193,23 @@ export function SpeechReader({
               disabled={!hasAudio || currentSentenceIndex >= totalSentences - 1}
               title="Nächster Satz"
               aria-label="Nächster Satz"
-              className="h-8 w-8 rounded-full border-foreground/20 shrink-0"
+              className="h-9 w-9 sm:h-8 sm:w-8 rounded-full border-foreground/20 shrink-0"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
 
-            {/* Interaktive Satz-Fortschrittsleiste */}
+            {/* Mobile Quick-Speed Pill (cycles 0.75× / 1.00× / 1.25× / 1.50×) */}
+            <button
+              type="button"
+              onClick={cycleMobileSpeed}
+              className="sm:hidden h-9 px-2.5 rounded-full border border-foreground/20 bg-background/80 font-mono text-[11px] font-bold text-primary tabular-nums shrink-0 active:scale-95 transition"
+              title="Tempo umschalten (0.75×, 1.00×, 1.25×, 1.50×)"
+              aria-label={`Tempo wechseln, aktuell ${settings.speechRate.toFixed(2)}×`}
+            >
+              {settings.speechRate.toFixed(2)}×
+            </button>
+
+            {/* Interaktive Satz-Fortschrittsleiste (Tablet/Desktop) */}
             {hasAudio && totalSentences > 0 && (
               <div className="hidden md:flex items-center gap-2 pl-1.5 min-w-[140px] max-w-[260px] flex-1">
                 <span className="font-mono text-[10px] font-bold text-muted-foreground tabular-nums shrink-0">
@@ -1216,82 +1233,128 @@ export function SpeechReader({
             )}
           </div>
 
-          {/* Konsole 3: Stufenloses Tempo & Mitlesen */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Mobile Row 2 / Desktop Left & Right via sm:contents */}
+          <div className="order-2 flex items-center justify-between gap-2 sm:contents">
+            {/* Konsole 1: Buchseiten-Steuerung (im Buchmodus) */}
+            {isBookMode ? (
+              <div className="sm:order-1 flex items-center gap-1 sm:gap-1.5 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrevPage}
+                  disabled={!canGoPrevPage}
+                  className="h-9 sm:h-8 gap-1 font-bold text-xs px-2.5 rounded-lg border-foreground/20 hover:bg-foreground/5"
+                  title={effectiveBookSpread ? "Vorherige Doppelseite (Pfeiltaste links)" : "Vorherige Seite"}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden md:inline">{effectiveBookSpread ? "Zurück" : "Vorherige"}</span>
+                </Button>
 
-            {/* Stufenloser Abspielgeschwindigkeits-Regler */}
-            <div
-              className="flex items-center gap-1 sm:gap-1.5 rounded-lg border border-foreground/15 bg-background/90 px-1.5 sm:px-2 py-1 shadow-xs"
-              title={`Abspielgeschwindigkeit stufenlos einstellen (aktuell: ${settings.speechRate.toFixed(2)}×)`}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  const next = Math.max(0.5, Math.round((settings.speechRate - 0.05) * 100) / 100);
-                  updateSettings({ ...settings, speechRate: next });
-                }}
-                disabled={settings.speechRate <= 0.5}
-                className="h-5 w-5 rounded flex items-center justify-center text-xs font-black text-muted-foreground hover:text-foreground hover:bg-foreground/10 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
-                title="Langsamer (-0.05×)"
-                aria-label="Abspielgeschwindigkeit langsamer"
+                <span className="bg-foreground/5 px-2.5 py-1 rounded-lg border border-foreground/15 text-xs font-bold whitespace-nowrap tabular-nums">
+                  {effectiveBookSpread && rightPageData
+                    ? `S. ${leftPageNum}–${rightPageNum} / ${pages.length}`
+                    : `S. ${leftPageNum} / ${pages.length}`}
+                </span>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={!canGoNextPage}
+                  className="h-9 sm:h-8 gap-1 font-bold text-xs px-2.5 rounded-lg border-foreground/20 hover:bg-foreground/5"
+                  title={effectiveBookSpread ? "Nächste Doppelseite (Pfeiltaste rechts)" : "Nächste Seite"}
+                >
+                  <span className="hidden md:inline">{effectiveBookSpread ? "Weiter" : "Nächste"}</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="sm:order-1 flex items-center gap-1.5 text-xs font-bold text-muted-foreground shrink-0">
+                <ScrollText className="h-4 w-4 text-primary" />
+                <span className="hidden sm:inline">Fließtext</span>
+                {hasAudio && totalSentences > 0 && (
+                  <span className="sm:hidden font-mono text-[11px] tabular-nums">
+                    Satz {Math.max(0, currentSentenceIndex + 1)}/{totalSentences}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Konsole 3: Stufenloses Tempo & Mitlesen */}
+            <div className="sm:order-3 flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* Stufenloser Abspielgeschwindigkeits-Regler (Desktop/Tablet) */}
+              <div
+                className="hidden sm:flex items-center gap-1 sm:gap-1.5 rounded-lg border border-foreground/15 bg-background/90 px-1.5 sm:px-2 py-1 shadow-xs"
+                title={`Abspielgeschwindigkeit stufenlos einstellen (aktuell: ${settings.speechRate.toFixed(2)}×)`}
               >
-                −
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.max(0.5, Math.round((settings.speechRate - 0.05) * 100) / 100);
+                    updateSettings({ ...settings, speechRate: next });
+                  }}
+                  disabled={settings.speechRate <= 0.5}
+                  className="h-5 w-5 rounded flex items-center justify-center text-xs font-black text-muted-foreground hover:text-foreground hover:bg-foreground/10 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                  title="Langsamer (-0.05×)"
+                  aria-label="Abspielgeschwindigkeit langsamer"
+                >
+                  −
+                </button>
 
-              <input
-                type="range"
-                min="0.5"
-                max="2.0"
-                step="0.05"
-                value={settings.speechRate}
-                onChange={(e) => {
-                  updateSettings({ ...settings, speechRate: parseFloat(e.target.value) });
-                }}
-                className="w-12 sm:w-20 md:w-24 h-1.5 bg-foreground/20 rounded-lg appearance-none cursor-pointer accent-primary"
-                aria-label="Abspielgeschwindigkeit stufenlos einstellen"
-              />
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.05"
+                  value={settings.speechRate}
+                  onChange={(e) => {
+                    updateSettings({ ...settings, speechRate: parseFloat(e.target.value) });
+                  }}
+                  className="w-12 sm:w-20 md:w-24 h-1.5 bg-foreground/20 rounded-lg appearance-none cursor-pointer accent-primary"
+                  aria-label="Abspielgeschwindigkeit stufenlos einstellen"
+                />
 
-              <button
-                type="button"
-                onClick={() => {
-                  const next = Math.min(2.0, Math.round((settings.speechRate + 0.05) * 100) / 100);
-                  updateSettings({ ...settings, speechRate: next });
-                }}
-                disabled={settings.speechRate >= 2.0}
-                className="h-5 w-5 rounded flex items-center justify-center text-xs font-black text-muted-foreground hover:text-foreground hover:bg-foreground/10 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
-                title="Schneller (+0.05×)"
-                aria-label="Abspielgeschwindigkeit schneller"
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.min(2.0, Math.round((settings.speechRate + 0.05) * 100) / 100);
+                    updateSettings({ ...settings, speechRate: next });
+                  }}
+                  disabled={settings.speechRate >= 2.0}
+                  className="h-5 w-5 rounded flex items-center justify-center text-xs font-black text-muted-foreground hover:text-foreground hover:bg-foreground/10 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                  title="Schneller (+0.05×)"
+                  aria-label="Abspielgeschwindigkeit schneller"
+                >
+                  +
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateSettings({ ...settings, speechRate: 1.0 });
+                  }}
+                  className="font-mono text-[11px] font-bold text-primary hover:underline px-1 rounded hover:bg-primary/10 transition tabular-nums shrink-0"
+                  title="Klicken für 1.00× (Normaltempo)"
+                >
+                  {settings.speechRate.toFixed(2)}×
+                </button>
+              </div>
+
+              {/* Autoscroll Toggle */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => updateSettings({ ...settings, autoScroll: !settings.autoScroll })}
+                className={`h-9 sm:h-7 px-2.5 sm:px-2 text-xs font-bold rounded-lg border transition ${
+                  settings.autoScroll
+                    ? "bg-emerald-600/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                    : "border-foreground/15 text-muted-foreground"
+                }`}
+                title="Automatisches Mitführen & Umblättern aktivieren/deaktivieren"
               >
-                +
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  updateSettings({ ...settings, speechRate: 1.0 });
-                }}
-                className="font-mono text-[11px] font-bold text-primary hover:underline px-1 rounded hover:bg-primary/10 transition tabular-nums shrink-0"
-                title="Klicken für 1.00× (Normaltempo)"
-              >
-                {settings.speechRate.toFixed(2)}×
-              </button>
+                <span>Mitlesen: {settings.autoScroll ? "An" : "Aus"}</span>
+              </Button>
             </div>
-
-            {/* Autoscroll Toggle */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => updateSettings({ ...settings, autoScroll: !settings.autoScroll })}
-              className={`h-7 px-2 text-xs font-bold rounded-lg border transition ${
-                settings.autoScroll
-                  ? "bg-emerald-600/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
-                  : "border-foreground/15 text-muted-foreground"
-              }`}
-              title="Automatisches Mitführen & Umblättern aktivieren/deaktivieren"
-            >
-              <span className="hidden sm:inline">Mitlesen: </span>
-              {settings.autoScroll ? "An" : "Aus"}
-            </Button>
           </div>
         </div>
       </footer>
@@ -1301,7 +1364,7 @@ export function SpeechReader({
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-16 sm:bottom-20 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1.5rem)] max-w-md font-sans"
+          className="fixed bottom-28 sm:bottom-20 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1.5rem)] max-w-md font-sans"
         >
           <div
             className={`rounded-2xl border p-4 shadow-2xl flex items-start justify-between gap-3 ${activeTheme.sheetClass}`}
@@ -1349,16 +1412,17 @@ export function SpeechReader({
       {isGlossaryOpen &&
         (activeSaga.glossary?.length || activeSaga.comprehensionTasks?.length) && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 select-text"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-xs p-0 sm:p-4 select-text"
             role="dialog"
             aria-modal="true"
             aria-label="Wortschatz und Aufgaben zum Textverständnis"
             onClick={() => setIsGlossaryOpen(false)}
           >
             <div
-              className={`w-full max-w-2xl max-h-[82vh] overflow-y-auto rounded-2xl border p-6 shadow-2xl space-y-6 font-sans ${activeTheme.sheetClass}`}
+              className={`w-full max-w-2xl max-h-[90dvh] sm:max-h-[82dvh] overflow-y-auto rounded-t-3xl sm:rounded-2xl border-t sm:border p-5 sm:p-6 pb-safe sm:pb-6 shadow-2xl space-y-5 sm:space-y-6 font-sans ${activeTheme.sheetClass}`}
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-foreground/20 sm:hidden" aria-hidden="true" />
               <div className={`flex items-center justify-between gap-4 border-b pb-3 ${activeTheme.borderSubtleClass}`}>
                 <div>
                   <h2 className={`text-base sm:text-lg font-bold ${activeTheme.headingClass}`}>
@@ -1373,7 +1437,7 @@ export function SpeechReader({
                   size="icon"
                   onClick={() => setIsGlossaryOpen(false)}
                   aria-label="Glossar schließen"
-                  className="h-8 w-8 rounded-full hover:bg-foreground/10"
+                  className="h-9 w-9 sm:h-8 sm:w-8 rounded-full hover:bg-foreground/10 shrink-0"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -1447,7 +1511,7 @@ export function SpeechReader({
                       stop();
                       onStartWriting(activeSaga);
                     }}
-                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    className="w-full sm:w-auto min-h-[44px] gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                   >
                     <PenLine className="h-4 w-4" />
                     Verstanden – Jetzt selbst nacherzählen

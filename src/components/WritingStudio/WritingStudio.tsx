@@ -853,28 +853,29 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] text-slate-800 flex flex-col">
+    <div className="min-h-screen bg-[#f8f9fa] text-slate-800 flex flex-col pb-24 md:pb-0">
       {/* Top Sticky Header */}
       <header className="no-print sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
+        <div className="mx-auto max-w-6xl px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
+              aria-label="Zurück zu allen Sagen"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl h-10 min-w-[40px] px-2.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Alle Sagen</span>
             </Link>
             <div className="h-5 w-px bg-slate-200 hidden sm:block" />
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <span className="font-bold text-sm sm:text-base text-slate-900 truncate">
                   {saga.title}
                 </span>
               </div>
-              <span className="text-[11px] font-medium text-emerald-700 hidden sm:inline-flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" />
-                {lastSavedLabel}
+              <span className="text-[11px] font-medium text-emerald-700 inline-flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3 shrink-0" />
+                <span className="truncate">{lastSavedLabel}</span>
               </span>
             </div>
           </div>
@@ -882,26 +883,26 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <Link
               href={`/sage/${saga.id}/lesen`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-2.5 sm:px-3 py-2 text-xs font-bold text-slate-700 transition-colors"
+              className="hidden md:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 h-10 text-xs font-bold text-slate-700 transition-colors"
               title="Zurück zu Schritt 01: Lesestudio & Hörbuch"
             >
               <Headphones className="h-3.5 w-3.5 text-emerald-700" />
-              <span className="hidden md:inline">01 Lesestudio</span>
+              <span>01 Lesestudio</span>
             </Link>
 
             <button
               type="button"
               onClick={() => setIsSourceOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 sm:px-3.5 py-2 text-xs font-bold transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 h-10 text-xs font-bold transition-colors cursor-pointer"
             >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Original-Sage</span>
+              <BookOpen className="h-4 w-4 shrink-0" />
+              <span className="hidden xs:inline sm:inline">Original-Sage</span>
             </button>
 
             <button
               type="button"
               onClick={handleToggleReadOwnStory}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 sm:px-3 py-2 text-xs font-bold transition-colors cursor-pointer ${
+              className={`hidden md:inline-flex items-center gap-1.5 rounded-xl border px-3 h-10 text-xs font-bold transition-colors cursor-pointer ${
                 isReadingOwnText
                   ? "bg-amber-100 border-amber-300 text-amber-900"
                   : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
@@ -921,11 +922,11 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white px-2.5 sm:px-3.5 py-2 text-xs font-bold transition-colors cursor-pointer shadow-xs"
+              className="hidden md:inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-3.5 h-10 text-xs font-bold transition-colors cursor-pointer shadow-xs"
               title="Als PDF speichern oder drucken"
             >
               <Printer className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">PDF / Drucken</span>
+              <span>PDF / Drucken</span>
             </button>
 
             <ApiKeyMenu compact />
@@ -936,30 +937,30 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
       {/* Main Writing Workspace */}
       <main className="flex-1 no-print">
         {/* Hero Header */}
-        <section className="bg-[#eaf1ec] px-4 sm:px-8 md:px-14 pt-10 pb-16 relative overflow-hidden">
+        <section className="bg-[#eaf1ec] px-4 sm:px-8 md:px-14 pt-6 pb-12 sm:pt-10 sm:pb-16 relative overflow-hidden">
           <div className="absolute -right-20 -top-20 w-64 h-64 bg-emerald-600/5 rounded-full blur-3xl pointer-events-none" />
-          <div className="mx-auto max-w-5xl relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="mx-auto max-w-5xl relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6">
             <div>
-              <div className="text-[11px] font-bold tracking-widest text-[#2f5540] uppercase mb-2">
+              <div className="text-[10px] sm:text-[11px] font-bold tracking-widest text-[#2f5540] uppercase mb-1.5 sm:mb-2">
                 Schritt 02 • Mach die Sage zu deiner
               </div>
               <h1
-                className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#143a25] tracking-tight"
+                className="text-2xl sm:text-4xl md:text-5xl font-bold text-[#143a25] tracking-tight"
                 style={{ fontFamily: "var(--font-serif), Georgia, serif" }}
               >
                 Jetzt bist du Erzähler.
               </h1>
-              <p className="text-[#2f5540] text-sm font-medium mt-2">
+              <p className="text-[#2f5540] text-xs sm:text-sm font-medium mt-1.5">
                 {saga.title} · {saga.region}
               </p>
             </div>
 
             {/* Assistance Mode Switcher */}
-            <div className="bg-white/85 backdrop-blur-xs border border-emerald-200/80 rounded-2xl p-2 shadow-xs">
+            <div className="bg-white/90 backdrop-blur-xs border border-emerald-200/80 rounded-2xl p-2 shadow-xs">
               <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800/70 px-2 pb-1">
                 KI-Hilfestufe
               </div>
-              <div className="flex items-center gap-1">
+              <div className="grid grid-cols-3 sm:flex items-center gap-1">
                 {(["starter", "standard", "profi"] as AssistanceMode[]).map((mode) => {
                   const active = draft.assistanceMode === mode;
                   return (
@@ -968,7 +969,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
                       type="button"
                       onClick={() => updateAssistanceMode(mode)}
                       title={ASSISTANCE_LABELS[mode].hint}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      className={`px-3 py-2 sm:py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                         active
                           ? "bg-emerald-700 text-white shadow-xs"
                           : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-900"
@@ -984,20 +985,20 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
         </section>
 
         {/* Live Stats Card */}
-        <div className="mx-auto max-w-5xl px-4 sm:px-8 -mt-8 relative z-20 mb-10">
-          <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-slate-200/80 grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100">
-            <div className="p-4 flex items-center gap-3.5">
-              <span className="text-2xl font-bold text-slate-800 tabular-nums">
+        <div className="mx-auto max-w-5xl px-4 sm:px-8 -mt-7 sm:-mt-8 relative z-20 mb-6 sm:mb-10">
+          <div className="bg-slate-100 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-slate-200/80 grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden">
+            <div className="bg-white p-3.5 sm:p-4 flex items-center gap-3">
+              <span className="text-xl sm:text-2xl font-bold text-slate-800 tabular-nums">
                 {stats.totalWords}
               </span>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide leading-tight">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wide leading-tight">
                 Wörter
                 <br />
                 geschrieben
               </span>
             </div>
 
-            <div className="p-4 flex items-center gap-3.5">
+            <div className="bg-white p-3.5 sm:p-4 flex items-center gap-3">
               <Clock className="h-5 w-5 text-slate-400 shrink-0" />
               <div>
                 <div className="text-sm font-bold text-slate-700">
@@ -1009,19 +1010,19 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
               </div>
             </div>
 
-            <div className="p-4 flex items-center gap-3.5">
+            <div className="bg-white p-3.5 sm:p-4 flex items-center gap-3">
               <div className="flex items-baseline">
                 <span className="text-xl font-bold text-slate-800">{stats.startedSections}</span>
                 <span className="text-sm font-medium text-slate-400">/4</span>
               </div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide leading-tight">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wide leading-tight">
                 Abschnitte
                 <br />
                 begonnen
               </span>
             </div>
 
-            <div className="p-4 flex items-center gap-3">
+            <div className="bg-white p-3.5 sm:p-4 flex items-center gap-2.5 sm:gap-3">
               {(() => {
                 const factSummary = analysis?.factCheck ?? draft.lastFactCheck;
                 return (
@@ -1061,12 +1062,12 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
         </div>
 
         {/* Editor Core */}
-        <div className="mx-auto max-w-5xl px-4 sm:px-8 pb-20 space-y-8">
+        <div className="mx-auto max-w-5xl px-4 sm:px-8 pb-12 sm:pb-20 space-y-6 sm:space-y-8">
           {/* Title & Primary Action */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4">
             <div>
               <h2
-                className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight"
+                className="text-xl sm:text-3xl font-bold text-slate-800 tracking-tight"
                 style={{ fontFamily: "var(--font-serif), Georgia, serif" }}
               >
                 Meine Nacherzählung
@@ -1090,7 +1091,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
               <Button
                 onClick={handleAnalyze}
                 disabled={isAnalyzing}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold gap-2 rounded-xl px-5 shadow-sm"
+                className="hidden md:inline-flex bg-emerald-700 hover:bg-emerald-800 text-white font-bold gap-2 rounded-xl px-5 shadow-sm"
               >
                 {isAnalyzing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1102,10 +1103,10 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
             </div>
           </div>
 
-          {/* Clickable Progress Tabs */}
+          {/* Sticky Clickable Progress Tabs */}
           <nav
             aria-label="Abschnitte der Sage"
-            className="flex items-center border-b border-slate-200 overflow-x-auto gap-1"
+            className="sticky top-14 sm:top-16 z-30 -mx-4 px-4 sm:mx-0 sm:px-0 bg-[#f8f9fa]/95 backdrop-blur-md flex items-center border-b border-slate-200 overflow-x-auto no-scrollbar gap-1"
           >
             {SAGA_SECTIONS_META.map((meta, idx) => {
               const hasContent = stats.wordsBySection[meta.id] > 0;
@@ -1116,10 +1117,10 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
                   onClick={() =>
                     cardRefs.current[meta.id]?.scrollIntoView({
                       behavior: "smooth",
-                      block: "center",
+                      block: "start",
                     })
                   }
-                  className={`flex-1 py-3 px-3 text-sm font-bold border-b-2 transition flex items-center justify-center sm:justify-start gap-2 whitespace-nowrap cursor-pointer ${
+                  className={`flex-1 min-w-max py-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 whitespace-nowrap cursor-pointer ${
                     hasContent
                       ? "text-emerald-700 border-emerald-600"
                       : "text-slate-400 border-transparent hover:text-slate-700 hover:border-slate-300"
@@ -1601,16 +1602,16 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
                     )}
                   </div>
 
-                  {/* Card Action Bar */}
-                  <div className="px-4 sm:px-5 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  {/* Card Action Bar (Touch-optimierte Pill-Buttons) */}
+                  <div className="px-3.5 sm:px-5 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         disabled={isProfi}
                         onClick={() => handleRequestStarters(meta.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-emerald-800 hover:bg-emerald-100/60 disabled:opacity-40 disabled:pointer-events-none rounded-lg transition cursor-pointer"
+                        className="inline-flex items-center gap-1.5 min-h-[40px] px-3 py-2 text-xs font-bold bg-white sm:bg-transparent border border-slate-200 sm:border-transparent text-slate-700 hover:text-emerald-800 hover:bg-emerald-100/60 disabled:opacity-40 disabled:pointer-events-none rounded-xl transition cursor-pointer"
                       >
-                        <Sparkles className="h-3.5 w-3.5" />
+                        <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
                         Satzanfänge
                       </button>
 
@@ -1618,11 +1619,11 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
                         type="button"
                         disabled={isProfi}
                         onClick={() => handleRequestContinuation(meta.id, false)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-emerald-800 hover:bg-emerald-100/60 disabled:opacity-40 disabled:pointer-events-none rounded-lg transition cursor-pointer"
+                        className="inline-flex items-center gap-1.5 min-h-[40px] px-3 py-2 text-xs font-bold bg-white sm:bg-transparent border border-slate-200 sm:border-transparent text-slate-700 hover:text-emerald-800 hover:bg-emerald-100/60 disabled:opacity-40 disabled:pointer-events-none rounded-xl transition cursor-pointer"
                         title="KI schlägt den nächsten kurzen Satz vor (Strg+M)"
                       >
-                        <PenLine className="h-3.5 w-3.5" />
-                        Weiter schreiben
+                        <PenLine className="h-3.5 w-3.5 text-emerald-700" />
+                        Weiter
                       </button>
 
                       {dictation.isSupported && (
@@ -1630,10 +1631,10 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
                           type="button"
                           disabled={dictation.isTranscribing && !isDictatingHere}
                           onClick={() => void handleToggleDictation(meta.id)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-40 ${
+                          className={`inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-2 text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-40 border ${
                             isDictatingHere
-                              ? "bg-red-100 text-red-800 border border-red-300"
-                              : "text-slate-600 hover:text-emerald-800 hover:bg-emerald-100/60"
+                              ? "bg-red-100 text-red-800 border-red-300"
+                              : "bg-white sm:bg-transparent border-slate-200 sm:border-transparent text-slate-700 hover:text-emerald-800 hover:bg-emerald-100/60"
                           }`}
                           title={
                             dictation.hasAiAssistance
@@ -1752,17 +1753,72 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
         )}
       </article>
 
-      {/* Original-Sage Reader Drawer/Modal */}
+      {/* Sticky Mobile Bottom Action Bar (Daumen-Zone am Smartphone) */}
+      <div className="no-print md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-3 pt-2.5 pb-safe">
+        <div className="flex items-center gap-2 max-w-lg mx-auto">
+          <Link
+            href={`/sage/${saga.id}/lesen`}
+            aria-label="01 Lesestudio öffnen"
+            className="inline-flex items-center justify-center h-11 w-11 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 active:bg-slate-200 shrink-0"
+            title="01 Lesestudio"
+          >
+            <Headphones className="h-5 w-5 text-emerald-700" />
+          </Link>
+
+          <button
+            type="button"
+            onClick={handleToggleReadOwnStory}
+            aria-label={isReadingOwnText ? "Vorlesen stoppen" : "Eigene Sage vorlesen"}
+            className={`inline-flex items-center justify-center h-11 w-11 rounded-xl border shrink-0 cursor-pointer ${
+              isReadingOwnText
+                ? "bg-amber-100 border-amber-300 text-amber-900"
+                : "border-slate-200 bg-slate-50 text-slate-700 active:bg-slate-200"
+            }`}
+            title="Vorlesen"
+          >
+            {isReadingOwnText ? (
+              <VolumeX className="h-5 w-5" />
+            ) : (
+              <Volume2 className="h-5 w-5 text-emerald-700" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => window.print()}
+            aria-label="Als PDF speichern oder drucken"
+            className="inline-flex items-center justify-center h-11 w-11 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 active:bg-slate-200 shrink-0 cursor-pointer"
+            title="PDF / Drucken"
+          >
+            <Printer className="h-5 w-5" />
+          </button>
+
+          <Button
+            onClick={handleAnalyze}
+            disabled={isAnalyzing}
+            className="flex-1 h-11 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm gap-2 rounded-xl shadow-sm"
+          >
+            {isAnalyzing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            <span>{isAnalyzing ? "Prüfe…" : "Text & Fakten prüfen"}</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Original-Sage Reader Drawer/Modal (Bottom Sheet am Smartphone) */}
       {isSourceOpen && (
         <div
-          className="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+          className="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-6"
           role="dialog"
           aria-modal="true"
           aria-label="Original-Sage lesen"
           onClick={() => setIsSourceOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl flex flex-col max-h-[88vh] overflow-hidden"
+            className="bg-white rounded-t-3xl sm:rounded-2xl max-w-3xl w-full shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-4 shrink-0">
@@ -1845,7 +1901,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
               )}
             </div>
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="px-5 sm:px-6 py-4 pb-safe sm:pb-4 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
               <Link
                 href={`/sage/${saga.id}/lesen`}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 hover:underline"
@@ -1864,17 +1920,17 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
         </div>
       )}
 
-      {/* Synonym Replacement Popover Modal (Touch & Desktop friendly) */}
+      {/* Synonym Replacement Popover Modal (Bottom Sheet am Smartphone) */}
       {synonymTarget && (
         <div
-          className="no-print fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+          className="no-print fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Alternative Wörter"
           onClick={() => setSynonymTarget(null)}
         >
           <div
-            className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden"
+            className="bg-white rounded-t-3xl sm:rounded-2xl max-w-sm w-full shadow-2xl border-t sm:border border-slate-200 overflow-hidden pb-safe sm:pb-0"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-emerald-50 px-5 py-3.5 border-b border-emerald-100 flex items-center justify-between">

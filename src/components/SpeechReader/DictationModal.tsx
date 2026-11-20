@@ -107,7 +107,7 @@ export function DictationModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-xs"
       onClick={handleClose}
     >
       <div
@@ -115,7 +115,7 @@ export function DictationModal({
         aria-modal="true"
         aria-labelledby="dictation-dialog-title"
         onClick={(e) => e.stopPropagation()}
-        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-2xl overflow-hidden"
+        className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-slate-200 bg-white text-slate-800 shadow-2xl overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 sm:p-5">
@@ -319,7 +319,7 @@ export function DictationModal({
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 p-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 p-4 pb-safe sm:pb-4">
           <Button variant="outline" onClick={handleClose} className="border-slate-300">
             Abbrechen
           </Button>

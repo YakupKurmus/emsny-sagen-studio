@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ApiKeyMenu } from "@/components/ApiKeyMenu";
 import { DatenschutzView } from "@/components/DatenschutzView";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { PortfolioView } from "@/components/PortfolioView";
+import { SpeechReader } from "@/components/SpeechReader/SpeechReader";
 import { WritingStudio } from "@/components/WritingStudio/WritingStudio";
 import {
   applySpokenPunctuationCommands,
@@ -365,5 +367,63 @@ describe("Writing-Studio Statistiken & Local-First Speicher", () => {
         "Es war ein sehr kalter Wintertag und ein riesiger Drache flog über das ganze Tal hinweg."
       )
     ).toBe(false);
+  });
+
+  it("rendert MobileBottomNav mit allen Hauptzielen und mobile Aktionsleiste in der Schreibwerkstatt", () => {
+    const { unmount } = render(<MobileBottomNav />);
+    const nav = screen.getByRole("navigation", { name: /Mobile Hauptnavigation/i });
+    expect(nav).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Sagen/i })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: /Portfolio/i })).toHaveAttribute("href", "/portfolio");
+    expect(screen.getByRole("link", { name: /Datenschutz/i })).toHaveAttribute(
+      "href",
+      "/datenschutz"
+    );
+    unmount();
+
+    render(<WritingStudio sagaId="sage-vom-woertherseemandl" />);
+    expect(
+      screen.getAllByRole("button", { name: /Text & Fakten prüfen/i }).length
+    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole("button", { name: /PDF/i }).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("blättert im SpeechReader auf Smartphones (unter 1024px) seitenweise per Wischgeste ohne Seite 2 zu überspringen", () => {
+    const originalInnerWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", {
+      writable: true,
+      configurable: true,
+      value: 390,
+    });
+
+    try {
+      const { container } = render(<SpeechReader initialSagaId="sage-vom-woertherseemandl" />);
+
+      // Auf Smartphones ist Einzelseiten-Modus aktiv: Seite 1 sichtbar, Seite 2 NICHT gleichzeitig
+      expect(screen.getByLabelText("Seite 1")).toHaveTextContent("1");
+      expect(screen.queryByLabelText("Seite 2")).not.toBeInTheDocument();
+      expect(screen.getByText(/^S\. 1 \/ \d+$/)).toBeInTheDocument();
+
+      // Nach links wischen -> genau auf Seite 2 blättern (nicht Seite 3!)
+      const bookSheet = container.querySelector("article")?.parentElement?.parentElement;
+      expect(bookSheet).toBeTruthy();
+      fireEvent.touchStart(bookSheet!, { touches: [{ clientX: 280, clientY: 200 }] });
+      fireEvent.touchEnd(bookSheet!, { changedTouches: [{ clientX: 120, clientY: 205 }] });
+
+      expect(screen.getByLabelText("Seite 2")).toHaveTextContent("2");
+      expect(screen.getByText(/^S\. 2 \/ \d+$/)).toBeInTheDocument();
+
+      // Nach rechts wischen -> zurück auf Seite 1
+      fireEvent.touchStart(bookSheet!, { touches: [{ clientX: 120, clientY: 200 }] });
+      fireEvent.touchEnd(bookSheet!, { changedTouches: [{ clientX: 280, clientY: 198 }] });
+
+      expect(screen.getByLabelText("Seite 1")).toHaveTextContent("1");
+    } finally {
+      Object.defineProperty(window, "innerWidth", {
+        writable: true,
+        configurable: true,
+        value: originalInnerWidth,
+      });
+    }
   });
 });

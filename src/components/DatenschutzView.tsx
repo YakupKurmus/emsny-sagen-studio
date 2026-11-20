@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ApiKeyMenu } from "@/components/ApiKeyMenu";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { Button } from "@/components/ui/button";
 import { clearAllLocalAppData, exportLocalBackupJson } from "@/lib/local-store";
 
@@ -39,7 +40,7 @@ export function DatenschutzView() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] text-slate-800">
+    <div className="min-h-screen bg-[#f8f9fa] text-slate-800 pb-24 md:pb-0">
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -189,6 +190,7 @@ export function DatenschutzView() {
           </div>
         </section>
       </main>
+      <MobileBottomNav />
     </div>
   );
 }

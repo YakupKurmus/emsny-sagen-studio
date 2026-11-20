@@ -44,12 +44,16 @@ export function ReaderSettingsDialog({
   ][];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-xs"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="reader-settings-title"
-        className="relative flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl border-2 border-foreground bg-card text-card-foreground shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-3xl sm:rounded-2xl border-t-2 sm:border-2 border-foreground bg-card text-card-foreground shadow-2xl overflow-hidden pb-safe sm:pb-0"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border p-4 sm:p-5">

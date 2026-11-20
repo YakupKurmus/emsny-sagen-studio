@@ -179,8 +179,8 @@ export function ApiKeyMenu({
 
   const triggerButtonClasses =
     variant === "adaptive"
-      ? "inline-flex items-center gap-1.5 h-8 rounded-lg border border-foreground/20 px-2.5 text-xs font-bold hover:bg-foreground/10 transition cursor-pointer"
-      : "inline-flex items-center gap-1.5 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-2.5 sm:px-3 text-xs font-bold text-slate-700 transition cursor-pointer shadow-2xs";
+      ? "inline-flex items-center justify-center gap-1.5 h-9 min-w-[36px] rounded-lg border border-foreground/20 px-2.5 text-xs font-bold hover:bg-foreground/10 transition cursor-pointer"
+      : "inline-flex items-center justify-center gap-1.5 h-10 min-w-[40px] rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-2.5 sm:px-3 text-xs font-bold text-slate-700 transition cursor-pointer shadow-2xs";
 
   return (
     <>
@@ -214,7 +214,7 @@ export function ApiKeyMenu({
         {menuOpen && (
           <div
             role="menu"
-            className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl bg-white text-slate-800 border border-slate-200 shadow-2xl z-50 overflow-hidden ring-1 ring-black/5"
+            className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] rounded-2xl bg-white text-slate-800 border border-slate-200 shadow-2xl z-50 overflow-hidden ring-1 ring-black/5"
           >
             {/* Status Header */}
             <div className="px-4 py-3.5 bg-slate-50 border-b border-slate-100 space-y-1.5">
@@ -344,17 +344,17 @@ export function ApiKeyMenu({
         )}
       </div>
 
-      {/* API-Key Input / Edit / Delete Modal */}
+      {/* API-Key Input / Edit / Delete Modal (Bottom Sheet on Mobile) */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Gemini API-Key verwalten"
           onClick={() => setModalOpen(false)}
         >
           <div
-            className="bg-white text-slate-800 rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden"
+            className="bg-white text-slate-800 rounded-t-3xl sm:rounded-2xl max-w-md w-full shadow-2xl border-t sm:border border-slate-200 overflow-hidden pb-safe sm:pb-0"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-3">

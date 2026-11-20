@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { SAGEN_CATALOG, type Saga } from "@/data/sagen-catalog";
 import { ApiKeyMenu } from "@/components/ApiKeyMenu";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { Button } from "@/components/ui/button";
 import {
   consumeAuthCallbackFromHash,
@@ -205,7 +206,7 @@ export function PortfolioView() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] text-slate-800">
+    <div className="min-h-screen bg-[#f8f9fa] text-slate-800 pb-24 md:pb-0">
       {/* Sticky Header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
@@ -563,6 +564,7 @@ export function PortfolioView() {
           </div>
         </section>
       </main>
+      <MobileBottomNav />
     </div>
   );
 }
