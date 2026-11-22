@@ -8,6 +8,8 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  Copy,
+  ExternalLink,
   Headphones,
   Lightbulb,
   Loader2,
@@ -18,6 +20,7 @@ import {
   Printer,
   RefreshCw,
   RotateCcw,
+  Share2,
   ShieldCheck,
   Sparkles,
   Volume2,
@@ -40,6 +43,13 @@ import {
   speakGoogle,
   stopGoogleSpeech,
 } from "@/lib/google-speech";
+import {
+  buildPlainTextStory,
+  buildPrintableHtml,
+  isStandalonePwa,
+  openPrintableDocument,
+  triggerMobileSafePrint,
+} from "@/lib/print-story";
 import {
   SAGA_SECTIONS_META,
   calculateDraftStats,
@@ -249,6 +259,10 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
     loading: boolean;
     alternatives: string[];
   } | null>(null);
+
+  // Print & PDF preview modal (mobil- & tablet-sicher)
+  const [isPrintOpen, setIsPrintOpen] = useState(false);
+  const [includePrintGlossary, setIncludePrintGlossary] = useState(true);
 
   // Dictation per section (KI-Diktat via Gemini 3.5 Transcribe + Browser Live-Diktat Fallback)
   const [dictatingSection, setDictatingSection] = useState<SectionId | null>(null);
@@ -825,6 +839,82 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
     toast.success("Entwurf zurückgesetzt.");
   };
 
+  const handleOpenPrintSheet = () => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) {
+      active.blur();
+    }
+    setIsPrintOpen(true);
+  };
+
+  const handleOpenPrintableTab = () => {
+    if (!saga) return;
+    const html = buildPrintableHtml({
+      saga,
+      draft,
+      totalWords: stats.totalWords,
+      includeGlossary: includePrintGlossary,
+    });
+    const mode = openPrintableDocument(html, saga.title);
+    if (mode === "download") {
+      toast.info(
+        "Druckansicht als HTML-Datei gespeichert. Öffne sie im Browser zum Drucken oder PDF-Speichern."
+      );
+    }
+  };
+
+  const handleDirectPrint = () => {
+    if (!saga) return;
+    // In iOS/iPadOS Home-Screen-Apps (Standalone PWA) wird window.print() oft ignoriert.
+    // Dort öffnen wir direkt die eigenständige Druckansicht im Browser.
+    if (isStandalonePwa()) {
+      handleOpenPrintableTab();
+      toast.info(
+        "Druckansicht im Browser geöffnet – nutze dort „Drucken“ oder Teilen → Drucken / PDF."
+      );
+      return;
+    }
+
+    const ok = triggerMobileSafePrint();
+    if (!ok) {
+      handleOpenPrintableTab();
+    }
+  };
+
+  const handleShareOrCopyStory = async () => {
+    if (!saga) return;
+    const text = buildPlainTextStory({
+      saga,
+      draft,
+      totalWords: stats.totalWords,
+      includeGlossary: includePrintGlossary,
+    });
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: `${saga.title} – Meine Nacherzählung`,
+          text,
+        });
+        return;
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
+      }
+    }
+
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success("Text in die Zwischenablage kopiert.");
+        return;
+      } catch {
+        // fallback below
+      }
+    }
+
+    handleOpenPrintableTab();
+  };
+
   if (!loaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]">
@@ -853,7 +943,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] text-slate-800 flex flex-col pb-24 md:pb-0">
+    <div className="print-root min-h-screen bg-[#f8f9fa] text-slate-800 flex flex-col pb-24 md:pb-0">
       {/* Top Sticky Header */}
       <header className="no-print sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
         <div className="mx-auto max-w-6xl px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
@@ -921,7 +1011,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
 
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handleOpenPrintSheet}
               className="hidden md:inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-3.5 h-10 text-xs font-bold transition-colors cursor-pointer shadow-xs"
               title="Als PDF speichern oder drucken"
             >
@@ -1710,7 +1800,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
       </main>
 
       {/* Clean A4 Print / PDF View (Visible only when printing) */}
-      <article className="hidden print:block p-8 max-w-3xl mx-auto text-slate-900 space-y-6">
+      <article className="print-only p-4 sm:p-8 max-w-3xl mx-auto text-slate-900 space-y-6">
         <div className="border-b-2 border-emerald-800 pb-4">
           <p className="text-xs uppercase tracking-widest text-slate-500 font-bold">
             Meine Nacherzählung · 6. Schulstufe
@@ -1726,20 +1816,26 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
           </p>
         </div>
 
-        {SAGA_SECTIONS_META.map((meta) => {
-          const content = draft.sections[meta.id].trim();
-          if (!content) return null;
-          return (
-            <section key={meta.id} className="space-y-1.5">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-900">
-                {meta.number}. {meta.shortTitle} ({meta.subtitle})
-              </h2>
-              <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{content}</p>
-            </section>
-          );
-        })}
+        {stats.totalWords === 0 ? (
+          <p className="text-sm italic text-slate-500">
+            (Noch kein Text geschrieben.)
+          </p>
+        ) : (
+          SAGA_SECTIONS_META.map((meta) => {
+            const content = draft.sections[meta.id].trim();
+            if (!content) return null;
+            return (
+              <section key={meta.id} className="space-y-1.5 break-inside-avoid">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-900">
+                  {meta.number}. {meta.shortTitle} ({meta.subtitle})
+                </h2>
+                <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{content}</p>
+              </section>
+            );
+          })
+        )}
 
-        {saga.glossary && saga.glossary.length > 0 && (
+        {includePrintGlossary && saga.glossary && saga.glossary.length > 0 && (
           <section className="pt-6 border-t border-slate-300 space-y-2 break-before-page">
             <h2 className="text-base font-bold text-slate-900">Anhang: B2-Wortschatz</h2>
             <ul className="space-y-1 text-sm">
@@ -1785,7 +1881,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
 
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={handleOpenPrintSheet}
             aria-label="Als PDF speichern oder drucken"
             className="inline-flex items-center justify-center h-11 w-11 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 active:bg-slate-200 shrink-0 cursor-pointer"
             title="PDF / Drucken"
@@ -1914,6 +2010,156 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
                 className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs"
               >
                 Schließen &amp; Weiter schreiben
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print & PDF Export Preview Modal (Bottom Sheet am Smartphone, Dialog am Tablet/Desktop) */}
+      {isPrintOpen && (
+        <div
+          className="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Drucken und PDF-Export"
+          onClick={() => setIsPrintOpen(false)}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-2xl max-w-2xl w-full max-h-[90dvh] sm:max-h-[86vh] flex flex-col shadow-2xl border-t sm:border border-slate-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Mobile Drag Handle */}
+            <div className="sm:hidden flex justify-center pt-2.5 pb-1 bg-slate-50">
+              <div className="w-10 h-1 rounded-full bg-slate-300" />
+            </div>
+
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                  A4-Druckvorschau &amp; PDF
+                </span>
+                <h2
+                  className="text-lg sm:text-xl font-bold text-slate-900 truncate"
+                  style={{ fontFamily: "var(--font-serif), Georgia, serif" }}
+                >
+                  {saga.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPrintOpen(false)}
+                className="h-10 w-10 inline-flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-200 cursor-pointer shrink-0"
+                aria-label="Schließen"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+              {stats.totalWords === 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs sm:text-sm text-amber-900">
+                  Du hast noch keinen Text geschrieben. Schreib zuerst mindestens einen Abschnitt,
+                  dann erscheint deine fertige Nacherzählung hier im Ausdruck.
+                </div>
+              )}
+
+              {/* Live A4 Preview Card */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 shadow-2xs space-y-4">
+                <div className="border-b-2 border-emerald-800 pb-3">
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">
+                    Meine Nacherzählung · 6. Schulstufe
+                  </p>
+                  <h3
+                    className="text-xl sm:text-2xl font-bold text-slate-900 mt-1"
+                    style={{ fontFamily: "var(--font-serif), Georgia, serif" }}
+                  >
+                    {saga.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {saga.region} · {stats.totalWords} Wörter
+                  </p>
+                </div>
+
+                {stats.totalWords === 0 ? (
+                  <p className="text-sm italic text-slate-400">
+                    (Hier erscheint dein geschriebener Text.)
+                  </p>
+                ) : (
+                  <div className="space-y-3.5">
+                    {SAGA_SECTIONS_META.map((meta) => {
+                      const content = draft.sections[meta.id].trim();
+                      if (!content) return null;
+                      return (
+                        <div key={meta.id} className="space-y-1">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+                            {meta.number}. {meta.shortTitle} ({meta.subtitle})
+                          </h4>
+                          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                            {content}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {saga.glossary && saga.glossary.length > 0 && (
+                  <label className="pt-3 border-t border-slate-100 flex items-center gap-2.5 text-xs sm:text-sm text-slate-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={includePrintGlossary}
+                      onChange={(e) => setIncludePrintGlossary(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 accent-emerald-700"
+                    />
+                    <span>
+                      <strong>B2-Wortschatz</strong> ({saga.glossary.length} Begriffe) als Anhang
+                      mitdrucken
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed">
+                <strong>Tipp für Smartphone &amp; Tablet:</strong> Falls der Druckdialog nicht
+                direkt aufgeht (z.&nbsp;B. im Home-Screen-Modus), tippe auf{" "}
+                <strong>„Druckansicht im neuen Tab“</strong> und wähle im Browser{" "}
+                <em>Teilen → Drucken</em> oder <em>Als PDF sichern</em>.
+              </p>
+            </div>
+
+            <div className="px-4 sm:px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-safe sm:pb-3.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleOpenPrintableTab}
+                  className="flex-1 sm:flex-none h-11 rounded-xl font-bold text-xs sm:text-sm gap-1.5"
+                >
+                  <ExternalLink className="h-4 w-4 text-emerald-700" />
+                  <span>Druckansicht im neuen Tab</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleShareOrCopyStory}
+                  className="h-11 rounded-xl font-bold text-xs sm:text-sm gap-1.5"
+                >
+                  {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
+                    <Share2 className="h-4 w-4 text-emerald-700" />
+                  ) : (
+                    <Copy className="h-4 w-4 text-emerald-700" />
+                  )}
+                  <span>Teilen / Kopieren</span>
+                </Button>
+              </div>
+              <Button
+                type="button"
+                onClick={handleDirectPrint}
+                className="w-full sm:w-auto h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm gap-2 px-5"
+              >
+                <Printer className="h-4 w-4" />
+                <span>Jetzt drucken / PDF</span>
               </Button>
             </div>
           </div>

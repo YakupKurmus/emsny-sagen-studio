@@ -185,12 +185,45 @@ details > summary::-webkit-details-marker {
   display: none;
 }
 
+.print-only {
+  display: none;
+}
+
 @media print {
-  .no-print {
-    display: none !important;
+  @page {
+    size: A4;
+    margin: 16mm;
   }
+
+  html,
   body {
     background: #ffffff !important;
     color: #0f172a !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-root {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .no-print,
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
   }
 }

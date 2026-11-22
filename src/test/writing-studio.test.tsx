@@ -12,6 +12,7 @@ import {
   mergeDictatedChunk,
 } from "@/lib/dictation-utils";
 import { createGlossaryIndex, findGlossaryMatch } from "@/lib/glossary-matcher";
+import { buildPlainTextStory, buildPrintableHtml } from "@/lib/print-story";
 import { createSpeechRecognizer } from "@/lib/speech-reader";
 import {
   GEMINI_API_KEY_STORAGE,
@@ -425,5 +426,64 @@ describe("Writing-Studio Statistiken & Local-First Speicher", () => {
         value: originalInnerWidth,
       });
     }
+  });
+
+  it("öffnet eine mobil- und tablet-sichere Druckvorschau inkl. eigenständigem HTML-Export", async () => {
+    const saga = findSagaById("sage-vom-woertherseemandl")!;
+    const draft = createEmptyDraft(saga.id);
+    draft.sections.einfuehrung = "Vor langer Zeit lebten <stolze> Menschen am See.";
+    saveDraft(draft);
+
+    const htmlWithGlossary = buildPrintableHtml({
+      saga,
+      draft,
+      totalWords: 7,
+      includeGlossary: true,
+    });
+    expect(htmlWithGlossary).toContain("&lt;stolze&gt;");
+    expect(htmlWithGlossary).toContain("Anhang: B2-Wortschatz");
+    expect(htmlWithGlossary).toContain("window.print()");
+
+    const htmlWithoutGlossary = buildPrintableHtml({
+      saga,
+      draft,
+      totalWords: 7,
+      includeGlossary: false,
+    });
+    expect(htmlWithoutGlossary).not.toContain("Anhang: B2-Wortschatz");
+
+    const plainText = buildPlainTextStory({
+      saga,
+      draft,
+      totalWords: 7,
+      includeGlossary: false,
+    });
+    expect(plainText).toContain(saga.title);
+    expect(plainText).toContain("Vor langer Zeit lebten <stolze> Menschen am See.");
+
+    const printSpy = vi.fn();
+    Object.defineProperty(window, "print", {
+      writable: true,
+      configurable: true,
+      value: printSpy,
+    });
+
+    render(<WritingStudio sagaId={saga.id} />);
+
+    // Klick auf den mobilen/Desktop PDF-Button öffnet die Druckvorschau
+    const printButtons = screen.getAllByRole("button", { name: /PDF|drucken/i });
+    fireEvent.click(printButtons[0]);
+
+    expect(
+      screen.getByRole("dialog", { name: /Drucken und PDF-Export/i })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Druckansicht im neuen Tab/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Teilen \/ Kopieren/i })).toBeInTheDocument();
+
+    // Direktdruck löst mobil-sicher (nach kurzem Delay) window.print() aus
+    fireEvent.click(screen.getByRole("button", { name: /Jetzt drucken \/ PDF/i }));
+    await waitFor(() => {
+      expect(printSpy).toHaveBeenCalledTimes(1);
+    });
   });
 });
