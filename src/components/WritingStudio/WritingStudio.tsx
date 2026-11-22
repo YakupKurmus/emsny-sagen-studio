@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Clock,
   Copy,
+  Download,
   ExternalLink,
   Headphones,
   Lightbulb,
@@ -46,8 +47,10 @@ import {
 import {
   buildPlainTextStory,
   buildPrintableHtml,
+  generateStoryPdf,
   isStandalonePwa,
   openPrintableDocument,
+  shareOrDownloadPdf,
   triggerMobileSafePrint,
 } from "@/lib/print-story";
 import {
@@ -263,6 +266,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
   // Print & PDF preview modal (mobil- & tablet-sicher)
   const [isPrintOpen, setIsPrintOpen] = useState(false);
   const [includePrintGlossary, setIncludePrintGlossary] = useState(true);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Dictation per section (KI-Diktat via Gemini 3.5 Transcribe + Browser Live-Diktat Fallback)
   const [dictatingSection, setDictatingSection] = useState<SectionId | null>(null);
@@ -860,6 +864,28 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
       toast.info(
         "Druckansicht als HTML-Datei gespeichert. Öffne sie im Browser zum Drucken oder PDF-Speichern."
       );
+    }
+  };
+
+  const handleDownloadOrSharePdf = async () => {
+    if (!saga || isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
+    try {
+      const pdf = await generateStoryPdf({
+        saga,
+        draft,
+        totalWords: stats.totalWords,
+        includeGlossary: includePrintGlossary,
+      });
+      const result = await shareOrDownloadPdf(pdf, saga.title);
+      if (result === "downloaded") {
+        toast.success(`PDF gespeichert: ${pdf.filename}`);
+      }
+    } catch (err) {
+      console.error("PDF-Erstellung fehlgeschlagen:", err);
+      toast.error("PDF konnte nicht erstellt werden – probiere bitte „Druckansicht im neuen Tab“.");
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -2121,46 +2147,63 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
               </div>
 
               <p className="text-xs text-slate-500 leading-relaxed">
-                <strong>Tipp für Smartphone &amp; Tablet:</strong> Falls der Druckdialog nicht
-                direkt aufgeht (z.&nbsp;B. im Home-Screen-Modus), tippe auf{" "}
-                <strong>„Druckansicht im neuen Tab“</strong> und wähle im Browser{" "}
-                <em>Teilen → Drucken</em> oder <em>Als PDF sichern</em>.
+                <strong>Tipp für Smartphone &amp; Tablet:</strong> Tippe auf{" "}
+                <strong>„Als PDF speichern / drucken“</strong> – damit wird sofort eine echte
+                A4-PDF-Datei erzeugt, die du auf iPhone, iPad und Android direkt drucken (AirPrint /
+                Drucker) oder in Dateien sichern kannst.
               </p>
             </div>
 
-            <div className="px-4 sm:px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-safe sm:pb-3.5">
+            <div className="px-4 sm:px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex flex-col gap-2 pb-safe sm:pb-3.5">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  onClick={handleDownloadOrSharePdf}
+                  disabled={isGeneratingPdf}
+                  className="flex-1 h-11 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-sm gap-2 px-5"
+                >
+                  {isGeneratingPdf ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  <span>
+                    {isGeneratingPdf ? "Erstelle PDF…" : "Als PDF speichern / drucken"}
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleDirectPrint}
+                  className="sm:w-auto h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm gap-2 px-5"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>Direkt drucken</span>
+                </Button>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleOpenPrintableTab}
-                  className="flex-1 sm:flex-none h-11 rounded-xl font-bold text-xs sm:text-sm gap-1.5"
+                  className="flex-1 sm:flex-none h-10 rounded-xl font-bold text-xs gap-1.5"
                 >
-                  <ExternalLink className="h-4 w-4 text-emerald-700" />
+                  <ExternalLink className="h-3.5 w-3.5 text-emerald-700" />
                   <span>Druckansicht im neuen Tab</span>
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleShareOrCopyStory}
-                  className="h-11 rounded-xl font-bold text-xs sm:text-sm gap-1.5"
+                  className="flex-1 sm:flex-none h-10 rounded-xl font-bold text-xs gap-1.5"
                 >
                   {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
-                    <Share2 className="h-4 w-4 text-emerald-700" />
+                    <Share2 className="h-3.5 w-3.5 text-emerald-700" />
                   ) : (
-                    <Copy className="h-4 w-4 text-emerald-700" />
+                    <Copy className="h-3.5 w-3.5 text-emerald-700" />
                   )}
-                  <span>Teilen / Kopieren</span>
+                  <span>Text teilen / kopieren</span>
                 </Button>
               </div>
-              <Button
-                type="button"
-                onClick={handleDirectPrint}
-                className="w-full sm:w-auto h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm gap-2 px-5"
-              >
-                <Printer className="h-4 w-4" />
-                <span>Jetzt drucken / PDF</span>
-              </Button>
             </div>
           </div>
         </div>

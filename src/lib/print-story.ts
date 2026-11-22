@@ -17,6 +17,38 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+function slugifyFilename(title: string): string {
+  const safe = title
+    .toLowerCase()
+    .replaceAll("ä", "ae")
+    .replaceAll("ö", "oe")
+    .replaceAll("ü", "ue")
+    .replaceAll("ß", "ss")
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return safe || "meine-sage";
+}
+
+/**
+ * Normalisiert typografische Zeichen außerhalb von Latin-1 (Windows-1252) für jsPDF-Standardschriften,
+ * während alle deutschen Umlaute (äöüÄÖÜß) und gängige Zeichen vollständig erhalten bleiben.
+ */
+function sanitizePdfText(value: string): string {
+  return value
+    .replaceAll("\u201e", '"')
+    .replaceAll("\u201c", '"')
+    .replaceAll("\u201d", '"')
+    .replaceAll("\u201a", "'")
+    .replaceAll("\u2018", "'")
+    .replaceAll("\u2019", "'")
+    .replaceAll("\u2013", "-")
+    .replaceAll("\u2014", "-")
+    .replaceAll("\u2026", "...")
+    .replaceAll("\u00a0", " ")
+    .replace(/[^\x09\x0a\x0d\x20-\xff]/g, "");
+}
+
 /**
  * Erkennt iOS/iPadOS Standalone-PWA-Modus, in dem window.print() von WebKit
  * häufig stumm ignoriert wird.
@@ -73,9 +105,207 @@ export function buildPlainTextStory({
 }
 
 /**
+ * Erzeugt eine echte A4-PDF-Datei direkt im Browser (ohne Server, offline-fähig).
+ * Funktioniert zuverlässig auf iPhone, iPad, Android-Tablets und am Desktop –
+ * ideal zum direkten Drucken (AirPrint / Android Print) oder Speichern in Dateien.
+ */
+export async function generateStoryPdf({
+  saga,
+  draft,
+  totalWords,
+  includeGlossary = true,
+}: PrintStoryOptions): Promise<{ blob: Blob; filename: string; file: File }> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+  });
+
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const marginX = 20;
+  const maxWidth = pageWidth - marginX * 2;
+  const bottomLimit = pageHeight - 22;
+  let y = 20;
+
+  const ensureSpace = (neededMm: number) => {
+    if (y + neededMm > bottomLimit) {
+      doc.addPage();
+      y = 20;
+    }
+  };
+
+  // Kicker
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(sanitizePdfText("MEINE NACHERZÄHLUNG · 6. SCHULSTUFE"), marginX, y);
+  y += 8;
+
+  // Title
+  doc.setFont("times", "bold");
+  doc.setFontSize(22);
+  doc.setTextColor(15, 23, 42);
+  const titleLines = doc.splitTextToSize(sanitizePdfText(saga.title), maxWidth) as string[];
+  doc.text(titleLines, marginX, y);
+  y += titleLines.length * 8.5 + 1;
+
+  // Meta
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(sanitizePdfText(`${saga.region} · ${totalWords} Wörter`), marginX, y);
+  y += 4.5;
+
+  // Emerald divider
+  doc.setDrawColor(6, 95, 70);
+  doc.setLineWidth(0.7);
+  doc.line(marginX, y, pageWidth - marginX, y);
+  y += 10;
+
+  // Story sections
+  let hasContent = false;
+  for (const meta of SAGA_SECTIONS_META) {
+    const content = draft.sections[meta.id].trim();
+    if (!content) continue;
+    hasContent = true;
+
+    ensureSpace(18);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(6, 78, 59);
+    const heading = sanitizePdfText(
+      `${meta.number}. ${meta.shortTitle.toUpperCase()} (${meta.subtitle.toUpperCase()})`
+    );
+    const headingLines = doc.splitTextToSize(heading, maxWidth) as string[];
+    doc.text(headingLines, marginX, y);
+    y += headingLines.length * 4.8 + 1.5;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+
+    const paragraphs = content.split(/\r?\n/);
+    for (const para of paragraphs) {
+      if (!para.trim()) {
+        y += 3.5;
+        continue;
+      }
+      const lines = doc.splitTextToSize(sanitizePdfText(para), maxWidth) as string[];
+      for (const line of lines) {
+        ensureSpace(6);
+        doc.text(line, marginX, y);
+        y += 5.6;
+      }
+      y += 1.5;
+    }
+
+    y += 5;
+  }
+
+  if (!hasContent) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(11);
+    doc.setTextColor(100, 116, 139);
+    doc.text(
+      sanitizePdfText("Noch kein Text geschrieben. Ergänze mindestens einen Abschnitt."),
+      marginX,
+      y
+    );
+    y += 10;
+  }
+
+  // Optional B2 Glossary on a fresh page
+  if (includeGlossary && saga.glossary && saga.glossary.length > 0) {
+    doc.addPage();
+    y = 20;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(15, 23, 42);
+    doc.text(sanitizePdfText("Anhang: B2-Wortschatz"), marginX, y);
+    y += 3.5;
+
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.4);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 8;
+
+    for (const g of saga.glossary) {
+      const entry = sanitizePdfText(`${g.term}: ${g.explanation}`);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(30, 41, 59);
+      const lines = doc.splitTextToSize(entry, maxWidth - 4) as string[];
+      ensureSpace(lines.length * 5 + 3);
+      doc.text("•", marginX, y);
+      doc.text(lines, marginX + 4, y);
+      y += lines.length * 5 + 2;
+    }
+  }
+
+  // Page numbers
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Seite ${p} / ${totalPages}`, pageWidth - marginX, pageHeight - 10, {
+      align: "right",
+    });
+  }
+
+  const blob = doc.output("blob");
+  const filename = `${slugifyFilename(saga.title)}-nacherzaehlung.pdf`;
+  const file = new File([blob], filename, { type: "application/pdf" });
+  return { blob, filename, file };
+}
+
+/**
+ * Lädt eine erzeugte PDF-Datei herunter oder teilt sie auf Mobilgeräten/Tablets
+ * direkt über das native Teilen-Menü (inkl. AirPrint / Drucken / Dateien).
+ */
+export async function shareOrDownloadPdf(
+  pdf: { blob: Blob; filename: string; file: File },
+  title: string
+): Promise<"shared" | "downloaded"> {
+  if (
+    typeof navigator !== "undefined" &&
+    typeof navigator.share === "function" &&
+    typeof navigator.canShare === "function"
+  ) {
+    try {
+      if (navigator.canShare({ files: [pdf.file] })) {
+        await navigator.share({
+          title: `${title} – Meine Nacherzählung`,
+          files: [pdf.file],
+        });
+        return "shared";
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return "shared";
+      }
+      // Fallback to direct download below
+    }
+  }
+
+  const url = URL.createObjectURL(pdf.blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = pdf.filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return "downloaded";
+}
+
+/**
  * Erstellt ein eigenständiges, druckfertiges A4-HTML-Dokument.
- * Funktioniert zuverlässig in Safari (iOS/iPadOS), Chrome (Android) und am Desktop –
- * auch als Fallback, wenn In-App-Browser oder PWAs window.print() blockieren.
  */
 export function buildPrintableHtml({
   saga,
@@ -300,36 +530,30 @@ export function buildPrintableHtml({
 }
 
 /**
- * Öffnet die eigenständige Druckansicht in einem neuen Tab (muss synchron im Click-Handler
- * aufgerufen werden, damit mobile Browser das Fenster nicht blockieren).
- * Fällt auf HTML-Download zurück, falls Pop-ups blockiert sind.
+ * Öffnet die eigenständige Druckansicht über document.write() (statt blob:-URL,
+ * die von iOS/iPadOS Safari beim Drucken häufig blockiert wird).
  */
 export function openPrintableDocument(html: string, filenameBase: string): "window" | "download" {
   if (typeof window === "undefined") return "download";
 
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-  const blobUrl = URL.createObjectURL(blob);
-
-  const popup = window.open(blobUrl, "_blank");
+  const popup = window.open("", "_blank");
   if (popup) {
     try {
+      popup.document.open();
+      popup.document.write(html);
+      popup.document.close();
       popup.focus();
+      return "window";
     } catch {
-      // ignore focus restrictions
+      // Fall through to download
     }
-    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-    return "window";
   }
 
-  // Fallback: Datei direkt herunterladen (lässt sich auf iPad/iPhone/Android in Safari/Chrome drucken)
-  const safeName = filenameBase
-    .toLowerCase()
-    .replace(/[^a-z0-9äöüß-]+/gi, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const blobUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = blobUrl;
-  a.download = `${safeName || "meine-sage"}-druckansicht.html`;
+  a.download = `${slugifyFilename(filenameBase)}-druckansicht.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -338,9 +562,8 @@ export function openPrintableDocument(html: string, filenameBase: string): "wind
 }
 
 /**
- * Löst window.print() mobil- und tablet-sicher aus:
- * 1) Schließt zuerst die Bildschirmtastatur durch blur() auf dem aktiven Element.
- * 2) Wartet einen kurzen Frame, damit iOS/iPadOS das Layout sauber neu berechnet.
+ * Löst window.print() SYNCHRON im Click-Handler aus, damit iOS/iPadOS Safari
+ * und Android Chrome die User-Gesture-Aktivierung nicht verlieren.
  */
 export function triggerMobileSafePrint(): boolean {
   if (typeof window === "undefined" || typeof window.print !== "function") {
@@ -352,9 +575,6 @@ export function triggerMobileSafePrint(): boolean {
     active.blur();
   }
 
-  window.setTimeout(() => {
-    window.print();
-  }, 120);
-
+  window.print();
   return true;
 }

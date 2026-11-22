@@ -12,7 +12,11 @@ import {
   mergeDictatedChunk,
 } from "@/lib/dictation-utils";
 import { createGlossaryIndex, findGlossaryMatch } from "@/lib/glossary-matcher";
-import { buildPlainTextStory, buildPrintableHtml } from "@/lib/print-story";
+import {
+  buildPlainTextStory,
+  buildPrintableHtml,
+  generateStoryPdf,
+} from "@/lib/print-story";
 import { createSpeechRecognizer } from "@/lib/speech-reader";
 import {
   GEMINI_API_KEY_STORAGE,
@@ -461,6 +465,16 @@ describe("Writing-Studio Statistiken & Local-First Speicher", () => {
     expect(plainText).toContain(saga.title);
     expect(plainText).toContain("Vor langer Zeit lebten <stolze> Menschen am See.");
 
+    const pdf = await generateStoryPdf({
+      saga,
+      draft,
+      totalWords: 7,
+      includeGlossary: true,
+    });
+    expect(pdf.blob.type).toBe("application/pdf");
+    expect(pdf.blob.size).toBeGreaterThan(500);
+    expect(pdf.filename).toMatch(/\.pdf$/);
+
     const printSpy = vi.fn();
     Object.defineProperty(window, "print", {
       writable: true,
@@ -477,13 +491,14 @@ describe("Writing-Studio Statistiken & Local-First Speicher", () => {
     expect(
       screen.getByRole("dialog", { name: /Drucken und PDF-Export/i })
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Als PDF speichern \/ drucken/i })
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Druckansicht im neuen Tab/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Teilen \/ Kopieren/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Text teilen \/ kopieren/i })).toBeInTheDocument();
 
-    // Direktdruck löst mobil-sicher (nach kurzem Delay) window.print() aus
-    fireEvent.click(screen.getByRole("button", { name: /Jetzt drucken \/ PDF/i }));
-    await waitFor(() => {
-      expect(printSpy).toHaveBeenCalledTimes(1);
-    });
+    // Direktdruck löst SYNCHRON im Click-Handler window.print() aus (wichtig für iOS/iPadOS User-Gesture)
+    fireEvent.click(screen.getByRole("button", { name: /Direkt drucken/i }));
+    expect(printSpy).toHaveBeenCalledTimes(1);
   });
 });
