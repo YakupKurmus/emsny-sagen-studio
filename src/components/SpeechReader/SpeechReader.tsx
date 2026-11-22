@@ -730,9 +730,9 @@ export function SpeechReader({
     >
       {/* 1. TOP CONTROL BAR */}
       <header
-        className={`shrink-0 h-13 sm:h-12 z-40 border-b backdrop-blur-md flex items-center transition-colors ${activeTheme.chromeClass}`}
+        className={`shrink-0 pt-safe z-40 border-b flex items-center transition-colors ${activeTheme.chromeClass}`}
       >
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-1.5 px-2.5 sm:px-6">
+        <div className="mx-auto flex h-13 sm:h-12 w-full max-w-7xl items-center justify-between gap-1.5 px-2.5 sm:px-6">
           {/* Back button & Title */}
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <Button
@@ -1120,7 +1120,7 @@ export function SpeechReader({
 
       {/* 3. EINGEFRORENE STEUERUNGSKONSOLE AM UNTEREN BILDSCHIRMRAND (FROZEN BOTTOM CONTROL CONSOLE) */}
       <footer
-        className={`fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur-xl shadow-2xl transition-colors pb-safe ${activeTheme.chromeClass}`}
+        className={`fixed bottom-0 inset-x-0 z-40 border-t shadow-2xl transition-colors pb-safe ${activeTheme.chromeClass}`}
       >
         <div className="mx-auto flex w-full max-w-7xl flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 px-2.5 sm:px-6 py-2">
           {/* Mobile Row 1 / Desktop Center: Google Cloud / Gemini HD Player */}

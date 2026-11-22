@@ -1,5 +1,25 @@
+import type { jsPDF as JsPDFConstructor } from "jspdf";
 import type { Saga } from "@/data/sagen-catalog";
 import { SAGA_SECTIONS_META, type SagaDraft } from "@/lib/writing-types";
+
+let cachedJsPDF: (typeof JsPDFConstructor) | null = null;
+let jsPdfLoadPromise: Promise<typeof JsPDFConstructor> | null = null;
+
+/**
+ * Lädt jsPDF vorab (z. B. beim Öffnen der Druckvorschau), damit der PDF-Export
+ * beim Klick auf iPad/iPhone mit 0 ms Verzögerung startet und navigator.share()
+ * die iOS/iPadOS User-Gesture niemals verliert.
+ */
+export async function preloadPdfEngine(): Promise<typeof JsPDFConstructor> {
+  if (cachedJsPDF) return cachedJsPDF;
+  if (!jsPdfLoadPromise) {
+    jsPdfLoadPromise = import("jspdf").then((mod) => {
+      cachedJsPDF = mod.jsPDF;
+      return mod.jsPDF;
+    });
+  }
+  return jsPdfLoadPromise;
+}
 
 export interface PrintStoryOptions {
   saga: Saga;
@@ -109,14 +129,11 @@ export function buildPlainTextStory({
  * Funktioniert zuverlässig auf iPhone, iPad, Android-Tablets und am Desktop –
  * ideal zum direkten Drucken (AirPrint / Android Print) oder Speichern in Dateien.
  */
-export async function generateStoryPdf({
-  saga,
-  draft,
-  totalWords,
-  includeGlossary = true,
-}: PrintStoryOptions): Promise<{ blob: Blob; filename: string; file: File }> {
-  const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({
+function buildStoryPdfWithConstructor(
+  JsPDFCtor: typeof JsPDFConstructor,
+  { saga, draft, totalWords, includeGlossary = true }: PrintStoryOptions
+): { blob: Blob; filename: string; file: File } {
+  const doc = new JsPDFCtor({
     orientation: "portrait",
     unit: "mm",
     format: "a4",
@@ -261,6 +278,29 @@ export async function generateStoryPdf({
   const filename = `${slugifyFilename(saga.title)}-nacherzaehlung.pdf`;
   const file = new File([blob], filename, { type: "application/pdf" });
   return { blob, filename, file };
+}
+
+/**
+ * Synchroner PDF-Bau (wenn preloadPdfEngine() bereits geladen wurde) –
+ * erhält die User-Gesture-Kette für navigator.share() auf iPadOS & iOS!
+ */
+export function generateStoryPdfSync(
+  options: PrintStoryOptions
+): { blob: Blob; filename: string; file: File } | null {
+  if (!cachedJsPDF) return null;
+  return buildStoryPdfWithConstructor(cachedJsPDF, options);
+}
+
+/**
+ * Erzeugt eine echte A4-PDF-Datei direkt im Browser (ohne Server, offline-fähig).
+ * Funktioniert zuverlässig auf iPhone, iPad, Android-Tablets und am Desktop –
+ * ideal zum direkten Drucken (AirPrint / Android Print) oder Speichern in Dateien.
+ */
+export async function generateStoryPdf(
+  options: PrintStoryOptions
+): Promise<{ blob: Blob; filename: string; file: File }> {
+  const JsPDFCtor = await preloadPdfEngine();
+  return buildStoryPdfWithConstructor(JsPDFCtor, options);
 }
 
 /**

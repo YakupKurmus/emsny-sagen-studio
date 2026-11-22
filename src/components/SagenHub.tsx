@@ -254,7 +254,7 @@ export function SagenHub() {
   return (
     <div className="min-h-screen bg-[#f8f9fa] text-slate-800 pb-24 md:pb-0">
       {/* Top Bar */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 pt-safe">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="h-9 w-9 rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-sm shrink-0">

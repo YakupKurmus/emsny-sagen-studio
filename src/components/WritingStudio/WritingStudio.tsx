@@ -48,8 +48,10 @@ import {
   buildPlainTextStory,
   buildPrintableHtml,
   generateStoryPdf,
+  generateStoryPdfSync,
   isStandalonePwa,
   openPrintableDocument,
+  preloadPdfEngine,
   shareOrDownloadPdf,
   triggerMobileSafePrint,
 } from "@/lib/print-story";
@@ -848,6 +850,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
     if (active instanceof HTMLElement) {
       active.blur();
     }
+    void preloadPdfEngine();
     setIsPrintOpen(true);
   };
 
@@ -871,19 +874,21 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
     if (!saga || isGeneratingPdf) return;
     setIsGeneratingPdf(true);
     try {
-      const pdf = await generateStoryPdf({
+      const options = {
         saga,
         draft,
         totalWords: stats.totalWords,
         includeGlossary: includePrintGlossary,
-      });
+      };
+      // Synchroner Bau wenn jsPDF bereits vorgeladen ist -> erhält die iOS/iPadOS User-Gesture für navigator.share()
+      const pdf = generateStoryPdfSync(options) ?? (await generateStoryPdf(options));
       const result = await shareOrDownloadPdf(pdf, saga.title);
       if (result === "downloaded") {
         toast.success(`PDF gespeichert: ${pdf.filename}`);
       }
     } catch (err) {
       console.error("PDF-Erstellung fehlgeschlagen:", err);
-      toast.error("PDF konnte nicht erstellt werden – probiere bitte „Druckansicht im neuen Tab“.");
+      toast.error("PDF konnte nicht erstellt werden – probiere bitte „Text teilen / kopieren“.");
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -891,19 +896,16 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
 
   const handleDirectPrint = () => {
     if (!saga) return;
-    // In iOS/iPadOS Home-Screen-Apps (Standalone PWA) wird window.print() oft ignoriert.
-    // Dort öffnen wir direkt die eigenständige Druckansicht im Browser.
+    // In iOS/iPadOS Home-Screen-Apps (Standalone PWA) deaktiviert Apple WebKit window.print() komplett.
+    // Deshalb öffnen wir dort direkt das echte A4-PDF über das native iOS/iPadOS Teilen-/Drucken-Menü (AirPrint)!
     if (isStandalonePwa()) {
-      handleOpenPrintableTab();
-      toast.info(
-        "Druckansicht im Browser geöffnet – nutze dort „Drucken“ oder Teilen → Drucken / PDF."
-      );
+      void handleDownloadOrSharePdf();
       return;
     }
 
     const ok = triggerMobileSafePrint();
     if (!ok) {
-      handleOpenPrintableTab();
+      void handleDownloadOrSharePdf();
     }
   };
 
@@ -971,7 +973,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
   return (
     <div className="print-root min-h-screen bg-[#f8f9fa] text-slate-800 flex flex-col pb-24 md:pb-0">
       {/* Top Sticky Header */}
-      <header className="no-print sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
+      <header className="no-print sticky top-0 z-40 bg-white border-b border-slate-200 shadow-2xs pt-safe">
         <div className="mx-auto max-w-6xl px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link
@@ -1222,7 +1224,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
           {/* Sticky Clickable Progress Tabs */}
           <nav
             aria-label="Abschnitte der Sage"
-            className="sticky top-14 sm:top-16 z-30 -mx-4 px-4 sm:mx-0 sm:px-0 bg-[#f8f9fa]/95 backdrop-blur-md flex items-center border-b border-slate-200 overflow-x-auto no-scrollbar gap-1"
+            className="sticky top-14 sm:top-16 z-30 -mx-4 px-4 sm:mx-0 sm:px-0 bg-[#f8f9fa] flex items-center border-b border-slate-200 overflow-x-auto no-scrollbar gap-1"
           >
             {SAGA_SECTIONS_META.map((meta, idx) => {
               const hasContent = stats.wordsBySection[meta.id] > 0;
@@ -1876,7 +1878,7 @@ export function WritingStudio({ sagaId }: { sagaId: string }) {
       </article>
 
       {/* Sticky Mobile Bottom Action Bar (Daumen-Zone am Smartphone) */}
-      <div className="no-print md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-3 pt-2.5 pb-safe">
+      <div className="no-print md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-3 pt-2.5 pb-safe">
         <div className="flex items-center gap-2 max-w-lg mx-auto">
           <Link
             href={`/sage/${saga.id}/lesen`}
